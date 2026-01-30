@@ -190,5 +190,6 @@ Workflow монтирует workspace в контейнер (`-v $GITHUB_WORKSPA
 
 - Issue #X — «Краткое описание» → PR #Y (итерации 1–2), итог: APPROVE.
 - Issue #Z — «Задача с ошибкой» → PR #W, Reviewer: REQUEST_CHANGES → Fix → APPROVE.
-#   m e g a  
+#   m e g a 
+ 
  
