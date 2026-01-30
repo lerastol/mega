@@ -1,0 +1,85 @@
+# Orchestration: Issue → Code Agent → PR → Reviewer → (REQUEST_CHANGES → Code Agent Fix) → цикл до лимита
+
+name: Agent Trigger
+
+on:
+  issues:
+    types: [opened, edited]
+  pull_request:
+    types: [opened, synchronize]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  agent:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'issues' || github.event_name == 'pull_request' || (github.event_name == 'pull_request_review' && (github.event.review.state == 'CHANGES_REQUESTED' || github.event.review.state == 'changes_requested'))
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set event context
+        id: event
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            echo "issue_number=" >> $GITHUB_OUTPUT
+            echo "fix_mode=" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "pull_request_review" ]; then
+            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            echo "issue_number=" >> $GITHUB_OUTPUT
+            if [ "${{ github.event.review.state }}" = "CHANGES_REQUESTED" ] || [ "${{ github.event.review.state }}" = "changes_requested" ]; then
+              echo "fix_mode=1" >> $GITHUB_OUTPUT
+            else
+              echo "fix_mode=" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "pr_number=" >> $GITHUB_OUTPUT
+            echo "issue_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+            echo "fix_mode=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run agent (Docker)
+        id: run
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ steps.event.outputs.issue_number }}
+          PR_NUMBER: ${{ steps.event.outputs.pr_number }}
+          FIX_MODE: ${{ steps.event.outputs.fix_mode }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          YANDEX_API_KEY: ${{ secrets.YANDEX_API_KEY }}
+          YANDEX_FOLDER_ID: ${{ secrets.YANDEX_FOLDER_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || secrets.LLM_API_KEY }}
+          LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'yandex' }}
+        run: |
+          docker build -t coding-agent .
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/app" \
+            -e GITHUB_TOKEN \
+            -e GITHUB_ACTOR \
+            -e GITHUB_REPOSITORY \
+            -e ISSUE_NUMBER \
+            -e PR_NUMBER \
+            -e FIX_MODE \
+            -e GITHUB_EVENT_NAME \
+            -e YANDEX_API_KEY \
+            -e YANDEX_FOLDER_ID \
+            -e OPENAI_API_KEY \
+            -e LLM_PROVIDER \
+            coding-agent 2>&1 | tee agent.log
+
+      - name: Upload agent logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agent-logs-${{ github.run_id }}-${{ github.event_name }}
+          path: agent.log
+          retention-days: 7

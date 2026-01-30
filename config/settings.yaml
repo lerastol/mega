@@ -1,0 +1,19 @@
+# Конфигурация агента (пример)
+agent:
+  max_iterations: 5
+  llm_provider: yandex  # yandex | openai
+
+reviewer:
+  max_iterations: 3  # макс. ревью на один PR (избежание бесконечного цикла)
+
+llm:
+  openai:
+    model: gpt-4o-mini
+    max_tokens: 4096
+    temperature: 0.3
+  yandex:
+    model: yandexgpt/latest
+    max_tokens: 2000
+
+github:
+  default_branch: main

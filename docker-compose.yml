@@ -1,0 +1,13 @@
+services:
+  agent:
+    build: .
+    env_file: .env
+    environment:
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - YANDEX_API_KEY=${YANDEX_API_KEY}
+      - YANDEX_FOLDER_ID=${YANDEX_FOLDER_ID}
+      - LLM_PROVIDER=${LLM_PROVIDER:-yandex}
+      - GITHUB_REPOSITORY=${GITHUB_REPOSITORY}
+    # Для локального запуска без GitHub Actions — передаём контекст через env
+    # В GitHub Actions переменные задаются в workflow
